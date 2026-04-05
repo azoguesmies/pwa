@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="NEXUS" />
   <meta name="application-name" content="NEXUS Contactos" />
-  <title>NEXUS · Contactos</title>
+  <title>NEXUS · Contactos v2.0</title>
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" id="faviconLink" type="image/svg+xml" />
   <link rel="apple-touch-icon" id="appleIconLink" />
@@ -907,9 +907,201 @@
     }
 
     #installedBadge.show { display: flex; }
+    /* ── ONLINE / OFFLINE BANNER ────────────────────────────── */
+    #offlineBanner {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: linear-gradient(90deg, #ff4d6d, #c0002a);
+      color: white;
+      text-align: center;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      padding: 0.55rem 1rem;
+      z-index: 1100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transform: translateY(-100%);
+      transition: transform 0.3s ease;
+    }
+    #offlineBanner.show { transform: translateY(0); }
+    #offlineBanner svg { flex-shrink: 0; }
+
+    #onlineToast {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: linear-gradient(90deg, #00c896, #00e5c0);
+      color: #0a0a0f;
+      text-align: center;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      padding: 0.55rem 1rem;
+      z-index: 1100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transform: translateY(-100%);
+      transition: transform 0.3s ease;
+    }
+    #onlineToast.show { transform: translateY(0); }
+
+    /* connectivity dot in header */
+    .conn-dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+      transition: background 0.3s;
+    }
+    .conn-dot.online  { background: var(--accent2); }
+    .conn-dot.offline { background: var(--accent3); animation: pulse 1s infinite; }
+
+    /* ── SEND BUTTON ────────────────────────────────────────── */
+    .btn-send {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      width: 100%;
+      margin-top: 1rem;
+      padding: 0.85rem 1.4rem;
+      background: linear-gradient(135deg, #1a6b3c, #00c873);
+      border: none;
+      border-radius: var(--radius);
+      color: white;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.82rem;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-send::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent);
+    }
+    .btn-send:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(0,200,115,0.35);
+    }
+    .btn-send:active:not(:disabled) { transform: translateY(0); }
+    .btn-send:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      background: var(--surface2);
+    }
+    .btn-send.sending svg { animation: spin 1s linear infinite; }
+
+    /* ── SEND CONFIRM MODAL ─────────────────────────────────── */
+    #sendModal { max-width: 400px; }
+
+    .send-modal-icon {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(0,200,115,0.2), rgba(0,229,192,0.15));
+      border: 2px solid rgba(0,200,115,0.4);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem;
+    }
+
+    .send-summary {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.9rem 1rem;
+      margin: 1rem 0;
+      font-size: 0.78rem;
+      color: var(--text2);
+      line-height: 1.8;
+    }
+
+    .send-summary strong { color: var(--accent2); }
+
+    .send-warning {
+      font-size: 0.72rem;
+      color: #f5a623;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.45rem;
+      margin-top: 0.75rem;
+      line-height: 1.5;
+    }
+    .send-warning svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* ── SEND PROGRESS OVERLAY ──────────────────────────────── */
+    #sendProgress {
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,15,0.85);
+      backdrop-filter: blur(6px);
+      z-index: 600;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+    }
+    #sendProgress.show { display: flex; }
+
+    .send-progress-ring {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      border: 3px solid var(--border);
+      border-top-color: #00c873;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .send-progress-text {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .send-progress-sub {
+      font-size: 0.72rem;
+      color: var(--text3);
+      margin-top: -0.75rem;
+    }
+
   </style>
 </head>
 <body>
+
+<!-- OFFLINE BANNER -->
+<div id="offlineBanner">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+    <line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55M5 12.55a10.94 10.94 0 015.17-2.39M10.71 5.05A16 16 0 0122.56 9M1.42 9a15.91 15.91 0 014.7-2.88M8.53 16.11a6 6 0 016.95 0M12 20h.01"/>
+  </svg>
+  SIN CONEXIÓN — Los datos se guardan localmente
+</div>
+
+<!-- ONLINE TOAST -->
+<div id="onlineToast">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+    <path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/>
+  </svg>
+  CONEXIÓN RESTAURADA — Puedes enviar los datos
+</div>
+
+<!-- SEND PROGRESS OVERLAY -->
+<div id="sendProgress">
+  <div class="send-progress-ring"></div>
+  <div class="send-progress-text" id="sendProgressText">Enviando datos…</div>
+  <div class="send-progress-sub" id="sendProgressSub">Conectando con Google Sheets</div>
+</div>
 <div class="app">
   <header>
     <div class="logo">
@@ -917,8 +1109,8 @@
       <span class="logo-text">NEX<span>US</span></span>
     </div>
     <div class="header-meta">
-      <span class="status-dot"></span> IndexedDB · Offline Ready<br>
-      PWA v1.0.0
+      <span class="conn-dot online" id="connDot"></span><span id="connLabel">En línea</span> · IndexedDB<br>
+      PWA v2.0
       <span id="installedBadge">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
         INSTALADA
@@ -1045,7 +1237,50 @@
           <p>Sin registros aún.<br>Agrega tu primer contacto.</p>
         </div>
       </div>
+
+      <!-- SEND TO GOOGLE SHEETS -->
+      <button class="btn-send" id="btnSend" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
+        </svg>
+        Enviar a Google Sheets
+      </button>
     </div>
+  </div>
+</div>
+
+<!-- SEND MODAL -->
+<div class="modal-backdrop" id="sendModalBackdrop"></div>
+<div class="modal" id="sendModal">
+  <div style="text-align:center">
+    <div class="send-modal-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00c873" stroke-width="2.5">
+        <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
+      </svg>
+    </div>
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;margin-bottom:0.5rem">
+      Enviar a Google Sheets
+    </div>
+    <p style="font-size:0.78rem;color:var(--text2);line-height:1.6">
+      Se enviarán <strong id="sendCount" style="color:var(--accent2)">0</strong> registros al servidor y luego serán <strong style="color:var(--text)">eliminados localmente</strong>.
+    </p>
+    <div class="send-summary" id="sendSummary"></div>
+    <div class="send-warning">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2.5">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      Esta acción borrará todos los registros locales tras el envío exitoso. Asegúrate de tener conexión estable.
+    </div>
+  </div>
+  <div class="modal-actions" style="margin-top:1.5rem">
+    <button class="btn btn-secondary" id="cancelSend">Cancelar</button>
+    <button class="btn btn-send" id="confirmSend" style="width:auto;margin-top:0;padding:0.65rem 1.4rem">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
+      </svg>
+      Confirmar envío
+    </button>
   </div>
 </div>
 
@@ -1247,6 +1482,7 @@ async function loadAll() {
     : allContacts;
   renderList(filtered);
   updateStats(allContacts);
+  updateSendBtn(allContacts);
 }
 
 // ─── FORM ──────────────────────────────────────────────────────────────────
@@ -1715,6 +1951,158 @@ document.getElementById('confirmDelete').addEventListener('click', async () => {
     if (editingId === deleteTargetId) resetForm();
   } catch (err) {
     showToast('Error al eliminar', true);
+  }
+});
+
+// ─── SEND BUTTON STATE ─────────────────────────────────────────────────────
+function updateSendBtn(contacts) {
+  const btn = document.getElementById('btnSend');
+  if (!btn) return;
+  const hasData    = contacts && contacts.length > 0;
+  const isOnline   = navigator.onLine;
+  btn.disabled     = !hasData || !isOnline;
+  btn.title = !hasData   ? 'No hay registros para enviar'
+            : !isOnline  ? 'Sin conexión a internet'
+            : `Enviar ${contacts.length} registro(s) a Google Sheets`;
+}
+
+// ─── ONLINE / OFFLINE ──────────────────────────────────────────────────────
+const offlineBanner = document.getElementById('offlineBanner');
+const onlineToast   = document.getElementById('onlineToast');
+const connDot       = document.getElementById('connDot');
+const connLabel     = document.getElementById('connLabel');
+let onlineToastTimer;
+
+function setOnlineUI(online) {
+  connDot.className   = `conn-dot ${online ? 'online' : 'offline'}`;
+  connLabel.textContent = online ? 'En línea' : 'Sin conexión';
+  if (online) {
+    offlineBanner.classList.remove('show');
+    onlineToast.classList.add('show');
+    clearTimeout(onlineToastTimer);
+    onlineToastTimer = setTimeout(() => onlineToast.classList.remove('show'), 3500);
+  } else {
+    onlineToast.classList.remove('show');
+    offlineBanner.classList.add('show');
+  }
+  updateSendBtn(allContacts);
+}
+
+window.addEventListener('online',  () => setOnlineUI(true));
+window.addEventListener('offline', () => setOnlineUI(false));
+
+// Set initial state
+if (!navigator.onLine) {
+  offlineBanner.classList.add('show');
+  connDot.className   = 'conn-dot offline';
+  connLabel.textContent = 'Sin conexión';
+}
+
+// ─── GOOGLE SHEETS API URL ─────────────────────────────────────────────────
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyxoquny8QDFJ1SLL5O8Vy6GTNGxIwX2e_h3tuKHSYdnyWbCuU00LMzCQYuE4ucMeuj/exec';
+
+// ─── SEND MODAL ─────────────────────────────────────────────────────────────
+const sendModalBackdrop = document.getElementById('sendModalBackdrop');
+const sendModalEl       = document.getElementById('sendModal');
+const cancelSendBtn     = document.getElementById('cancelSend');
+const confirmSendBtn    = document.getElementById('confirmSend');
+
+function openSendModal() {
+  if (!navigator.onLine) {
+    showToast('⚠️ Sin conexión a internet. Conéctate para enviar.', true);
+    return;
+  }
+  if (!allContacts.length) {
+    showToast('No hay registros para enviar.', true);
+    return;
+  }
+  // Populate summary
+  document.getElementById('sendCount').textContent = allContacts.length;
+  const citySet = new Set(allContacts.map(c => c.ciudad));
+  document.getElementById('sendSummary').innerHTML = `
+    <strong>${allContacts.length}</strong> contactos · <strong>${citySet.size}</strong> ciudades<br>
+    ${[...citySet].slice(0,5).join(', ')}${citySet.size > 5 ? ` y ${citySet.size - 5} más…` : ''}
+  `;
+  sendModalBackdrop.classList.add('show');
+  sendModalEl.classList.add('show');
+}
+
+function closeSendModal() {
+  sendModalBackdrop.classList.remove('show');
+  sendModalEl.classList.remove('show');
+}
+
+cancelSendBtn.addEventListener('click', closeSendModal);
+sendModalBackdrop.addEventListener('click', closeSendModal);
+document.getElementById('btnSend').addEventListener('click', openSendModal);
+
+// ─── DO SEND ────────────────────────────────────────────────────────────────
+confirmSendBtn.addEventListener('click', async () => {
+  closeSendModal();
+
+  if (!navigator.onLine) {
+    showToast('⚠️ Sin conexión. No se puede enviar.', true);
+    return;
+  }
+
+  const records = await dbGetAll();
+  if (!records.length) {
+    showToast('No hay registros para enviar.', true);
+    return;
+  }
+
+  // Show progress overlay
+  const progress    = document.getElementById('sendProgress');
+  const progressTxt = document.getElementById('sendProgressText');
+  const progressSub = document.getElementById('sendProgressSub');
+  progress.classList.add('show');
+  progressTxt.textContent = `Enviando ${records.length} registro(s)…`;
+  progressSub.textContent = 'Conectando con Google Sheets';
+
+  try {
+    // ── Columnas exactas del Sheet: nombres, direccion, email, ciudadInput, valEasting, valNorthing
+    // Enviamos registro por registro como FormData para que Google Apps Script
+    // pueda leer e.parameter sin problema de CORS ni Content-Type bloqueado.
+
+    let enviados = 0;
+    for (const r of records) {
+      progressTxt.textContent = `Enviando ${enviados + 1} de ${records.length}…`;
+      progressSub.textContent  = r.nombres || '';
+
+      const form = new FormData();
+      form.append('nombres',     r.nombres     || '');
+      form.append('direccion',   r.direccion   || '');
+      form.append('email',       r.email       || '');
+      form.append('ciudad',      r.ciudad      || '');   // columna "ciudad"
+      form.append('valEasting',  r.utmEasting  || '');   // columna "valEasting"
+      form.append('valNorthing', r.utmNorthing || '');   // columna "valNorthing"
+
+      await fetch(SHEETS_URL, {
+        method: 'POST',
+        mode:   'no-cors',   // opaque pero Google Apps Script sí lee FormData
+        body:   form,
+      });
+
+      enviados++;
+    }
+
+    progressTxt.textContent = '¡Enviado exitosamente!';
+    progressSub.textContent = 'Borrando registros locales…';
+
+    // Borrar todos los registros locales tras envío exitoso
+    await Promise.all(records.map(r => dbDelete(r.id)));
+    await loadAll();
+
+    progress.classList.remove('show');
+    showToast(`✅ ${records.length} registro(s) enviados a Google Sheets y borrados localmente`);
+
+  } catch (err) {
+    progress.classList.remove('show');
+    if (!navigator.onLine) {
+      showToast('⚠️ Se perdió la conexión durante el envío. Datos conservados localmente.', true);
+    } else {
+      showToast('❌ Error al enviar: ' + (err.message || 'Error desconocido'), true);
+    }
   }
 });
 
