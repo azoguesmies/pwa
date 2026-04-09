@@ -6,7 +6,7 @@
    Parámetros = nombres exactos de columnas del Sheet:
    nombres | direccion | email | ciudad | valEasting | valNorthing
    ─────────────────────────────────────────────────────────────── */
-const GS_URL = 'https://script.google.com/macros/s/AKfycbyxoquny8QDFJ1SLL5O8Vy6GTNGxIwX2e_h3tuKHSYdnyWbCuU00LMzCQYuE4ucMeuj/exec';
+const GS_URL = 'https://script.google.com/macros/s/AKfycbx1e4V5gJ6HBwYHv3bb6G1Im7laFKWVXRQhvc4gxxg6CJYI5UTHrSQGTNJb9RvK0xQn/exec';
 
 /* ── INDEXEDDB ───────────────────────────────────────────────────
    Claves = nombres exactos de columnas del Sheet
