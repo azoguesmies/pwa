@@ -6,8 +6,7 @@
    Parámetros = nombres exactos de columnas del Sheet:
    nombres | direccion | email | ciudad | valEasting | valNorthing
    ─────────────────────────────────────────────────────────────── */
-/*const GS_URL = 'https://script.google.com/macros/s/AKfycbyxoquny8QDFJ1SLL5O8Vy6GTNGxIwX2e_h3tuKHSYdnyWbCuU00LMzCQYuE4ucMeuj/exec';*/
-const GS_URL = 'https://script.google.com/macros/s/AKfycbyX0rigVs5vUcUZ7ofORYplr45IQsgaRkAKkcRNrhAjz_Qb3IhdqYmJt90CvLxnPcno/exec';
+const GS_URL = 'https://script.google.com/macros/s/AKfycbyxoquny8QDFJ1SLL5O8Vy6GTNGxIwX2e_h3tuKHSYdnyWbCuU00LMzCQYuE4ucMeuj/exec';
 
 /* ── INDEXEDDB ───────────────────────────────────────────────────
    Claves = nombres exactos de columnas del Sheet
@@ -304,22 +303,31 @@ document.getElementById('confirmSend').addEventListener('click', async () => {
     spTxt.textContent = `Enviando ${ok + fail + 1} de ${records.length}…`;
     spSub.textContent = r.nombres || '';
 
-    // POST + FormData: único método que permite enviar foto (base64)
-    // junto a los demás campos. GAS los lee con e.parameter desde FormData.
-    const fd = new FormData();
-    fd.append('nombres',     r.nombres     || '');
-    fd.append('direccion',   r.direccion   || '');
-    fd.append('email',       r.email       || '');
-    fd.append('ciudad',      r.ciudad      || '');
-    fd.append('valEasting',  r.valEasting  || '');
-    fd.append('valNorthing', r.valNorthing || '');
-    fd.append('foto',        r.foto        || '');  // base64 o vacío
+    // ── Estrategia de envío con foto ──────────────────────────────
+    // El único método que funciona con Google Apps Script + no-cors
+    // y que soporta payloads grandes (foto en base64) es:
+    //   POST + body JSON + Content-Type: text/plain
+    // GAS lo lee desde e.postData.contents con JSON.parse().
+    // FormData multipart falla porque no-cors trunca el body.
+    // GET + URLSearchParams falla porque la URL tiene límite de longitud.
+    const payload = JSON.stringify({
+      nombres:     r.nombres     || '',
+      direccion:   r.direccion   || '',
+      email:       r.email       || '',
+      ciudad:      r.ciudad      || '',
+      valEasting:  r.valEasting  || '',
+      valNorthing: r.valNorthing || '',
+      foto:        r.foto        || '',   // base64 completo o ''
+    });
 
     try {
       await fetch(GS_URL, {
-        method: 'POST',
-        mode:   'no-cors',
-        body:   fd,
+        method:  'POST',
+        mode:    'no-cors',
+        // text/plain es un header "simple" → permitido en no-cors
+        // GAS lo recibe en e.postData.contents y lo lee con JSON.parse()
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body:    payload,
       });
       ok++;
     } catch (e) {
@@ -661,89 +669,219 @@ const EC_CITIES = [
    - Almacena en IndexedDB como string base64
    - Campo opcional: puede estar vacío al guardar y al enviar
    ─────────────────────────────────────────────────────────────── */
+/* ── FOTO FIELD ──────────────────────────────────────────────────
+   Dos vías para obtener la foto:
+   A) Botón "Tomar foto":
+      1. Intenta abrir cámara en vivo con getUserMedia (Chrome/Firefox)
+      2. Si no está disponible (Safari iOS, sin HTTPS) → usa input capture="environment"
+         que en móvil abre la cámara nativa del sistema operativo
+   B) Botón "Galería / Archivo":
+      - input file sin capture → abre selector completo (galería, explorador)
+   Campo completamente opcional — envío OK con foto vacía.
+   ─────────────────────────────────────────────────────────────── */
 (function initFoto() {
-  const dropEl    = document.getElementById('fotoDrop');
-  const inputEl   = document.getElementById('fotoInput');
-  const previewEl = document.getElementById('fotoPreview');
-  const hiddenEl  = document.getElementById('foto');
-  const clearBtn  = document.getElementById('fotoClear');
-  const infoEl    = document.getElementById('fotoInfo');
+  const dropEl      = document.getElementById('fotoDrop');
+  const previewEl   = document.getElementById('fotoPreview');
+  const hiddenEl    = document.getElementById('foto');
+  const clearBtn    = document.getElementById('fotoClear');
+  const infoEl      = document.getElementById('fotoInfo');
+  const btnCam      = document.getElementById('btnFotoCam');
+  const btnGal      = document.getElementById('btnFotoGal');
+  const inputCam    = document.getElementById('fotoInputCam');   // capture=environment
+  const inputGal    = document.getElementById('fotoInputGal');   // sin capture
 
-  const MAX_PX    = 800;   // píxeles máximos (ancho o alto)
-  const QUALITY   = 0.75;  // calidad JPEG
+  // Elementos del modal cámara en vivo
+  const camModal    = document.getElementById('camModal');
+  const camVideo    = document.getElementById('camVideo');
+  const camCanvas   = document.getElementById('camCanvas');
+  const camCapture  = document.getElementById('camCapture');
+  const camSwitch   = document.getElementById('camSwitch');
+  const camClose    = document.getElementById('camClose');
 
-  // Abrir selector al hacer clic en el área
-  dropEl.addEventListener('click', e => {
-    if (e.target === clearBtn || clearBtn.contains(e.target)) return;
-    inputEl.click();
+  const MAX_PX  = 1024;
+  const QUALITY = 0.82;
+
+  let camStream      = null;   // MediaStream activo
+  let facingMode     = 'environment';  // cámara trasera por defecto
+
+  // ── Botón TOMAR FOTO ────────────────────────────────────────────
+  // Intenta getUserMedia primero. Si falla → input capture como fallback.
+  btnCam.addEventListener('click', async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      // Fallback: cámara nativa del SO vía input file
+      inputCam.click();
+      return;
+    }
+    try {
+      await abrirCamara(facingMode);
+    } catch (err) {
+      console.warn('getUserMedia falló, usando input capture:', err.message);
+      inputCam.click();
+    }
   });
 
-  // Drag & Drop desde PC
-  dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('dragover'); });
+  // ── Botón GALERÍA / ARCHIVO ─────────────────────────────────────
+  btnGal.addEventListener('click', () => inputGal.click());
+
+  // ── Input cámara nativa (capture=environment) ───────────────────
+  inputCam.addEventListener('change', () => {
+    const file = inputCam.files?.[0];
+    if (file) processFile(file, 'Foto tomada con cámara');
+    inputCam.value = '';
+  });
+
+  // ── Input galería / archivo ─────────────────────────────────────
+  inputGal.addEventListener('change', () => {
+    const file = inputGal.files?.[0];
+    if (file) processFile(file, file.name);
+    inputGal.value = '';
+  });
+
+  // ── Drag & Drop (solo PC) ───────────────────────────────────────
+  dropEl.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropEl.classList.add('dragover');
+  });
   dropEl.addEventListener('dragleave', () => dropEl.classList.remove('dragover'));
   dropEl.addEventListener('drop', e => {
     e.preventDefault();
     dropEl.classList.remove('dragover');
     const file = e.dataTransfer?.files?.[0];
-    if (file) processFile(file);
+    if (file) processFile(file, file.name);
   });
 
-  // Selección desde input file (cámara o galería en móvil)
-  inputEl.addEventListener('change', () => {
-    const file = inputEl.files?.[0];
-    if (file) processFile(file);
-    inputEl.value = '';  // reset para permitir re-selección del mismo archivo
-  });
-
-  // Botón limpiar foto
+  // ── Botón limpiar foto ──────────────────────────────────────────
   clearBtn.addEventListener('click', e => {
     e.stopPropagation();
     window._resetFoto();
   });
 
-  // Procesar archivo: validar, comprimir, mostrar
-  function processFile(file) {
+  // ── MODAL CÁMARA EN VIVO ────────────────────────────────────────
+  async function abrirCamara(facing) {
+    const constraints = {
+      video: {
+        facingMode: facing,
+        width:      { ideal: 1280 },
+        height:     { ideal: 960 },
+      },
+      audio: false,
+    };
+
+    // Detener stream anterior si existe
+    detenerCamara();
+
+    camStream = await navigator.mediaDevices.getUserMedia(constraints);
+    camVideo.srcObject = camStream;
+    camModal.style.display = 'flex';
+
+    // Ocultar botón cambiar cámara si el dispositivo no tiene varias
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+    camSwitch.style.display = videoDevices.length > 1 ? 'flex' : 'none';
+  }
+
+  // Cambiar entre cámara frontal y trasera
+  camSwitch.addEventListener('click', async () => {
+    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+    try {
+      await abrirCamara(facingMode);
+    } catch (err) {
+      showToast('No se pudo cambiar la cámara', true);
+    }
+  });
+
+  // Capturar frame del video
+  camCapture.addEventListener('click', () => {
+    if (!camStream) return;
+
+    const vw = camVideo.videoWidth  || 640;
+    const vh = camVideo.videoHeight || 480;
+
+    // Calcular dimensiones con límite MAX_PX
+    let w = vw, h = vh;
+    if (w > MAX_PX || h > MAX_PX) {
+      if (w > h) { h = Math.round(h * MAX_PX / w); w = MAX_PX; }
+      else       { w = Math.round(w * MAX_PX / h); h = MAX_PX; }
+    }
+
+    camCanvas.width  = w;
+    camCanvas.height = h;
+
+    // Si es cámara frontal, voltear horizontalmente
+    const ctx = camCanvas.getContext('2d');
+    if (facingMode === 'user') {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(camVideo, 0, 0, w, h);
+
+    const base64 = camCanvas.toDataURL('image/jpeg', QUALITY);
+    cerrarCamara();
+    mostrarFoto(base64, `Foto directa · ${w}×${h}px`);
+  });
+
+  // Cerrar modal sin capturar
+  camClose.addEventListener('click', cerrarCamara);
+
+  // Cerrar si toca fuera del inner
+  camModal.addEventListener('click', e => {
+    if (e.target === camModal) cerrarCamara();
+  });
+
+  function cerrarCamara() {
+    detenerCamara();
+    camModal.style.display = 'none';
+  }
+
+  function detenerCamara() {
+    if (camStream) {
+      camStream.getTracks().forEach(t => t.stop());
+      camStream = null;
+      camVideo.srcObject = null;
+    }
+  }
+
+  // ── PROCESAR ARCHIVO (galería / input capture) ──────────────────
+  function processFile(file, label) {
     if (!file.type.startsWith('image/')) {
       setInfo('Solo se permiten imágenes (JPG, PNG, WEBP…)', 'err');
       return;
     }
-    const maxMB = 10;
-    if (file.size > maxMB * 1024 * 1024) {
-      setInfo(`La imagen supera ${maxMB} MB`, 'err');
+    if (file.size > 15 * 1024 * 1024) {
+      setInfo('La imagen supera 15 MB', 'err');
       return;
     }
-
-    setInfo('Procesando imagen…', '');
+    setInfo('Procesando…', '');
 
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = ev => {
       const img = new Image();
       img.onload = () => {
-        // Calcular nuevas dimensiones respetando el aspect ratio
         let { width: w, height: h } = img;
         if (w > MAX_PX || h > MAX_PX) {
           if (w > h) { h = Math.round(h * MAX_PX / w); w = MAX_PX; }
           else       { w = Math.round(w * MAX_PX / h); h = MAX_PX; }
         }
-
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-
         const base64 = canvas.toDataURL('image/jpeg', QUALITY);
-
-        // Guardar y mostrar
-        hiddenEl.value         = base64;
-        previewEl.src          = base64;
-        dropEl.classList.add('has-foto');
-        clearBtn.style.display = 'flex';
-
         const kb = Math.round(base64.length * 0.75 / 1024);
-        setInfo(`✓ ${file.name} · ${w}×${h}px · ~${kb} KB`, 'ok');
+        mostrarFoto(base64, `${label} · ${w}×${h}px · ~${kb} KB`);
       };
-      img.src = e.target.result;
+      img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
+  }
+
+  // ── MOSTRAR FOTO EN EL FORMULARIO ──────────────────────────────
+  function mostrarFoto(base64, label) {
+    hiddenEl.value         = base64;
+    previewEl.src          = base64;
+    dropEl.classList.add('has-foto');
+    clearBtn.style.display = 'flex';
+    const kb = Math.round(base64.length * 0.75 / 1024);
+    setInfo(`✓ ${label}`, 'ok');
   }
 
   function setInfo(msg, cls) {
@@ -751,15 +889,16 @@ const EC_CITIES = [
     infoEl.className   = `foto-info ${cls}`;
   }
 
-  // Reset global (llamado desde resetForm)
+  // ── RESET (llamado desde resetForm) ────────────────────────────
   window._resetFoto = () => {
     hiddenEl.value         = '';
     previewEl.src          = '';
-    previewEl.style.display = '';
     dropEl.classList.remove('has-foto');
     clearBtn.style.display = 'none';
     setInfo('', '');
-    inputEl.value = '';
+    inputCam.value = '';
+    inputGal.value = '';
+    cerrarCamara();
   };
 })();
 
