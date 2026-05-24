@@ -177,92 +177,51 @@
         <!-- ── FOTO ──────────────────────────────────────── -->
         <div class="fg foto-group">
           <label>Foto <span class="optional-tag">Opcional</span></label>
-
-          <!-- Área de vista previa / drop zone -->
           <div class="foto-drop" id="fotoDrop">
             <div class="foto-placeholder" id="fotoPlaceholder">
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" stroke-width="1.5">
                 <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
                 <circle cx="12" cy="13" r="4"/>
               </svg>
-              <span>Sin foto adjunta</span>
-              <small>Usa los botones de abajo para agregar una imagen</small>
+              <span>Toca para seleccionar foto</span>
+              <small>Cámara · Galería · Archivo</small>
             </div>
             <img id="fotoPreview" class="foto-preview" alt="Vista previa"/>
-            <button type="button" class="foto-clear" id="fotoClear" style="display:none"
-                    title="Eliminar foto">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+            <button type="button" class="foto-clear" id="fotoClear" style="display:none">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" stroke-width="2.5">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
             </button>
           </div>
-
-          <!-- Botones de acción -->
+          <input type="file" id="fotoInput" accept="image/*"
+                 style="display:none"/>
+          <canvas id="camCanvas" style="display:none"></canvas>
+          <!-- foto almacenada como base64 -->
+          <input type="hidden" id="foto" name="foto"/>
           <div class="foto-actions">
-            <!-- Cámara directa (capture=environment → cámara trasera en móvil) -->
-            <button type="button" class="btn-foto-cam" id="btnFotoCam">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="2.2">
+            <button type="button" class="btn-foto" id="btnCamara">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                   stroke-linejoin="round">
                 <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
                 <circle cx="12" cy="13" r="4"/>
               </svg>
               Tomar foto
             </button>
-
-            <!-- Galería / explorador de archivos -->
-            <button type="button" class="btn-foto-gal" id="btnFotoGal">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="2.2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <polyline points="21 15 16 10 5 21"/>
+            <button type="button" class="btn-foto" id="btnSubir">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                   stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
-              Galería / Archivo
+              Subir archivo
             </button>
           </div>
-
-          <!-- Input cámara: capture=environment fuerza cámara trasera en móvil -->
-          <input type="file" id="fotoInputCam"
-                 accept="image/*" capture="environment"
-                 style="display:none"/>
-
-          <!-- Input galería/archivo: sin capture = abre selector completo -->
-          <input type="file" id="fotoInputGal"
-                 accept="image/*"
-                 style="display:none"/>
-
-          <!-- Modal cámara en vivo (para navegadores con getUserMedia) -->
-          <div class="cam-modal" id="camModal" style="display:none">
-            <div class="cam-modal-inner">
-              <video id="camVideo" autoplay playsinline muted></video>
-              <canvas id="camCanvas" style="display:none"></canvas>
-              <div class="cam-controls">
-                <button type="button" class="cam-switch" id="camSwitch" title="Cambiar cámara">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                       stroke="currentColor" stroke-width="2.2">
-                    <path d="M1 4v6h6M23 20v-6h-6"/>
-                    <path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/>
-                  </svg>
-                </button>
-                <button type="button" class="cam-capture" id="camCapture">
-                  <span></span>
-                </button>
-                <button type="button" class="cam-close" id="camClose" title="Cancelar">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                       stroke="currentColor" stroke-width="2.5">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Campo oculto que almacena base64 -->
-          <input type="hidden" id="foto" name="foto"/>
           <div class="foto-info" id="fotoInfo"></div>
         </div>
 
@@ -395,6 +354,18 @@
       Confirmar envío
     </button>
   </div>
+</div>
+
+<!-- ── CAMERA OVERLAY ────────────────────────────────────────── -->
+<div class="cam-overlay" id="camOverlay">
+  <video id="camVideo" autoplay playsinline></video>
+  <button type="button" class="btn-cam-shoot" id="camShoot">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="9"/>
+      <circle cx="12" cy="12" r="6" fill="currentColor"/>
+    </svg>
+  </button>
+  <button type="button" class="cam-close" id="camCancel">✕</button>
 </div>
 
 <!-- ── INSTALL BANNER ────────────────────────────────────────── -->

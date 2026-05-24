@@ -6,7 +6,8 @@
    Parámetros = nombres exactos de columnas del Sheet:
    nombres | direccion | email | ciudad | valEasting | valNorthing
    ─────────────────────────────────────────────────────────────── */
-const GS_URL = 'https://script.google.com/macros/s/AKfycbyxoquny8QDFJ1SLL5O8Vy6GTNGxIwX2e_h3tuKHSYdnyWbCuU00LMzCQYuE4ucMeuj/exec';
+/*const GS_URL = 'https://script.google.com/macros/s/AKfycbyxoquny8QDFJ1SLL5O8Vy6GTNGxIwX2e_h3tuKHSYdnyWbCuU00LMzCQYuE4ucMeuj/exec';*/
+const GS_URL = 'https://script.google.com/macros/s/AKfycbyX0rigVs5vUcUZ7ofORYplr45IQsgaRkAKkcRNrhAjz_Qb3IhdqYmJt90CvLxnPcno/exec';
 
 /* ── INDEXEDDB ───────────────────────────────────────────────────
    Claves = nombres exactos de columnas del Sheet
@@ -303,31 +304,22 @@ document.getElementById('confirmSend').addEventListener('click', async () => {
     spTxt.textContent = `Enviando ${ok + fail + 1} de ${records.length}…`;
     spSub.textContent = r.nombres || '';
 
-    // ── Estrategia de envío con foto ──────────────────────────────
-    // El único método que funciona con Google Apps Script + no-cors
-    // y que soporta payloads grandes (foto en base64) es:
-    //   POST + body JSON + Content-Type: text/plain
-    // GAS lo lee desde e.postData.contents con JSON.parse().
-    // FormData multipart falla porque no-cors trunca el body.
-    // GET + URLSearchParams falla porque la URL tiene límite de longitud.
-    const payload = JSON.stringify({
-      nombres:     r.nombres     || '',
-      direccion:   r.direccion   || '',
-      email:       r.email       || '',
-      ciudad:      r.ciudad      || '',
-      valEasting:  r.valEasting  || '',
-      valNorthing: r.valNorthing || '',
-      foto:        r.foto        || '',   // base64 completo o ''
-    });
+    // POST + FormData: único método que permite enviar foto (base64)
+    // junto a los demás campos. GAS los lee con e.parameter desde FormData.
+    const fd = new FormData();
+    fd.append('nombres',     r.nombres     || '');
+    fd.append('direccion',   r.direccion   || '');
+    fd.append('email',       r.email       || '');
+    fd.append('ciudad',      r.ciudad      || '');
+    fd.append('valEasting',  r.valEasting  || '');
+    fd.append('valNorthing', r.valNorthing || '');
+    fd.append('foto',        r.foto        || '');  // base64 o vacío
 
     try {
       await fetch(GS_URL, {
-        method:  'POST',
-        mode:    'no-cors',
-        // text/plain es un header "simple" → permitido en no-cors
-        // GAS lo recibe en e.postData.contents y lo lee con JSON.parse()
-        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-        body:    payload,
+        method: 'POST',
+        mode:   'no-cors',
+        body:   fd,
       });
       ok++;
     } catch (e) {
@@ -669,219 +661,93 @@ const EC_CITIES = [
    - Almacena en IndexedDB como string base64
    - Campo opcional: puede estar vacío al guardar y al enviar
    ─────────────────────────────────────────────────────────────── */
-/* ── FOTO FIELD ──────────────────────────────────────────────────
-   Dos vías para obtener la foto:
-   A) Botón "Tomar foto":
-      1. Intenta abrir cámara en vivo con getUserMedia (Chrome/Firefox)
-      2. Si no está disponible (Safari iOS, sin HTTPS) → usa input capture="environment"
-         que en móvil abre la cámara nativa del sistema operativo
-   B) Botón "Galería / Archivo":
-      - input file sin capture → abre selector completo (galería, explorador)
-   Campo completamente opcional — envío OK con foto vacía.
-   ─────────────────────────────────────────────────────────────── */
 (function initFoto() {
-  const dropEl      = document.getElementById('fotoDrop');
-  const previewEl   = document.getElementById('fotoPreview');
-  const hiddenEl    = document.getElementById('foto');
-  const clearBtn    = document.getElementById('fotoClear');
-  const infoEl      = document.getElementById('fotoInfo');
-  const btnCam      = document.getElementById('btnFotoCam');
-  const btnGal      = document.getElementById('btnFotoGal');
-  const inputCam    = document.getElementById('fotoInputCam');   // capture=environment
-  const inputGal    = document.getElementById('fotoInputGal');   // sin capture
+  const dropEl    = document.getElementById('fotoDrop');
+  const inputEl   = document.getElementById('fotoInput');
+  const subirBtn  = document.getElementById('btnSubir');
+  const previewEl = document.getElementById('fotoPreview');
+  const hiddenEl  = document.getElementById('foto');
+  const clearBtn  = document.getElementById('fotoClear');
+  const infoEl    = document.getElementById('fotoInfo');
 
-  // Elementos del modal cámara en vivo
-  const camModal    = document.getElementById('camModal');
-  const camVideo    = document.getElementById('camVideo');
-  const camCanvas   = document.getElementById('camCanvas');
-  const camCapture  = document.getElementById('camCapture');
-  const camSwitch   = document.getElementById('camSwitch');
-  const camClose    = document.getElementById('camClose');
+  const MAX_PX    = 800;   // píxeles máximos (ancho o alto)
+  const QUALITY   = 0.75;  // calidad JPEG
 
-  const MAX_PX  = 1024;
-  const QUALITY = 0.82;
-
-  let camStream      = null;   // MediaStream activo
-  let facingMode     = 'environment';  // cámara trasera por defecto
-
-  // ── Botón TOMAR FOTO ────────────────────────────────────────────
-  // Intenta getUserMedia primero. Si falla → input capture como fallback.
-  btnCam.addEventListener('click', async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      // Fallback: cámara nativa del SO vía input file
-      inputCam.click();
-      return;
-    }
-    try {
-      await abrirCamara(facingMode);
-    } catch (err) {
-      console.warn('getUserMedia falló, usando input capture:', err.message);
-      inputCam.click();
-    }
+  // Abrir selector al hacer clic en el área
+  dropEl.addEventListener('click', e => {
+    if (e.target === clearBtn || clearBtn.contains(e.target)) return;
+    inputEl.click();
   });
 
-  // ── Botón GALERÍA / ARCHIVO ─────────────────────────────────────
-  btnGal.addEventListener('click', () => inputGal.click());
-
-  // ── Input cámara nativa (capture=environment) ───────────────────
-  inputCam.addEventListener('change', () => {
-    const file = inputCam.files?.[0];
-    if (file) processFile(file, 'Foto tomada con cámara');
-    inputCam.value = '';
-  });
-
-  // ── Input galería / archivo ─────────────────────────────────────
-  inputGal.addEventListener('change', () => {
-    const file = inputGal.files?.[0];
-    if (file) processFile(file, file.name);
-    inputGal.value = '';
-  });
-
-  // ── Drag & Drop (solo PC) ───────────────────────────────────────
-  dropEl.addEventListener('dragover', e => {
-    e.preventDefault();
-    dropEl.classList.add('dragover');
-  });
+  // Drag & Drop desde PC
+  dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('dragover'); });
   dropEl.addEventListener('dragleave', () => dropEl.classList.remove('dragover'));
   dropEl.addEventListener('drop', e => {
     e.preventDefault();
     dropEl.classList.remove('dragover');
     const file = e.dataTransfer?.files?.[0];
-    if (file) processFile(file, file.name);
+    if (file) processFile(file);
   });
 
-  // ── Botón limpiar foto ──────────────────────────────────────────
+  // Selección desde input file (galería o archivo)
+  inputEl.addEventListener('change', () => {
+    const file = inputEl.files?.[0];
+    if (file) processFile(file);
+    inputEl.value = '';
+  });
+
+  // Botón "Subir archivo" → mismo input que el drop zone
+  subirBtn.addEventListener('click', () => inputEl.click());
+
+  // Botón limpiar foto
   clearBtn.addEventListener('click', e => {
     e.stopPropagation();
     window._resetFoto();
   });
 
-  // ── MODAL CÁMARA EN VIVO ────────────────────────────────────────
-  async function abrirCamara(facing) {
-    const constraints = {
-      video: {
-        facingMode: facing,
-        width:      { ideal: 1280 },
-        height:     { ideal: 960 },
-      },
-      audio: false,
-    };
-
-    // Detener stream anterior si existe
-    detenerCamara();
-
-    camStream = await navigator.mediaDevices.getUserMedia(constraints);
-    camVideo.srcObject = camStream;
-    camModal.style.display = 'flex';
-
-    // Ocultar botón cambiar cámara si el dispositivo no tiene varias
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === 'videoinput');
-    camSwitch.style.display = videoDevices.length > 1 ? 'flex' : 'none';
-  }
-
-  // Cambiar entre cámara frontal y trasera
-  camSwitch.addEventListener('click', async () => {
-    facingMode = facingMode === 'environment' ? 'user' : 'environment';
-    try {
-      await abrirCamara(facingMode);
-    } catch (err) {
-      showToast('No se pudo cambiar la cámara', true);
-    }
-  });
-
-  // Capturar frame del video
-  camCapture.addEventListener('click', () => {
-    if (!camStream) return;
-
-    const vw = camVideo.videoWidth  || 640;
-    const vh = camVideo.videoHeight || 480;
-
-    // Calcular dimensiones con límite MAX_PX
-    let w = vw, h = vh;
-    if (w > MAX_PX || h > MAX_PX) {
-      if (w > h) { h = Math.round(h * MAX_PX / w); w = MAX_PX; }
-      else       { w = Math.round(w * MAX_PX / h); h = MAX_PX; }
-    }
-
-    camCanvas.width  = w;
-    camCanvas.height = h;
-
-    // Si es cámara frontal, voltear horizontalmente
-    const ctx = camCanvas.getContext('2d');
-    if (facingMode === 'user') {
-      ctx.translate(w, 0);
-      ctx.scale(-1, 1);
-    }
-    ctx.drawImage(camVideo, 0, 0, w, h);
-
-    const base64 = camCanvas.toDataURL('image/jpeg', QUALITY);
-    cerrarCamara();
-    mostrarFoto(base64, `Foto directa · ${w}×${h}px`);
-  });
-
-  // Cerrar modal sin capturar
-  camClose.addEventListener('click', cerrarCamara);
-
-  // Cerrar si toca fuera del inner
-  camModal.addEventListener('click', e => {
-    if (e.target === camModal) cerrarCamara();
-  });
-
-  function cerrarCamara() {
-    detenerCamara();
-    camModal.style.display = 'none';
-  }
-
-  function detenerCamara() {
-    if (camStream) {
-      camStream.getTracks().forEach(t => t.stop());
-      camStream = null;
-      camVideo.srcObject = null;
-    }
-  }
-
-  // ── PROCESAR ARCHIVO (galería / input capture) ──────────────────
-  function processFile(file, label) {
+  // Procesar archivo: validar, comprimir, mostrar
+  function processFile(file) {
     if (!file.type.startsWith('image/')) {
       setInfo('Solo se permiten imágenes (JPG, PNG, WEBP…)', 'err');
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      setInfo('La imagen supera 15 MB', 'err');
+    const maxMB = 10;
+    if (file.size > maxMB * 1024 * 1024) {
+      setInfo(`La imagen supera ${maxMB} MB`, 'err');
       return;
     }
-    setInfo('Procesando…', '');
+
+    setInfo('Procesando imagen…', '');
 
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = e => {
       const img = new Image();
       img.onload = () => {
+        // Calcular nuevas dimensiones respetando el aspect ratio
         let { width: w, height: h } = img;
         if (w > MAX_PX || h > MAX_PX) {
           if (w > h) { h = Math.round(h * MAX_PX / w); w = MAX_PX; }
           else       { w = Math.round(w * MAX_PX / h); h = MAX_PX; }
         }
+
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
         const base64 = canvas.toDataURL('image/jpeg', QUALITY);
+
+        // Guardar y mostrar
+        hiddenEl.value         = base64;
+        previewEl.src          = base64;
+        dropEl.classList.add('has-foto');
+        clearBtn.style.display = 'flex';
+
         const kb = Math.round(base64.length * 0.75 / 1024);
-        mostrarFoto(base64, `${label} · ${w}×${h}px · ~${kb} KB`);
+        setInfo(`✓ ${file.name} · ${w}×${h}px · ~${kb} KB`, 'ok');
       };
-      img.src = ev.target.result;
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
-  }
-
-  // ── MOSTRAR FOTO EN EL FORMULARIO ──────────────────────────────
-  function mostrarFoto(base64, label) {
-    hiddenEl.value         = base64;
-    previewEl.src          = base64;
-    dropEl.classList.add('has-foto');
-    clearBtn.style.display = 'flex';
-    const kb = Math.round(base64.length * 0.75 / 1024);
-    setInfo(`✓ ${label}`, 'ok');
   }
 
   function setInfo(msg, cls) {
@@ -889,17 +755,74 @@ const EC_CITIES = [
     infoEl.className   = `foto-info ${cls}`;
   }
 
-  // ── RESET (llamado desde resetForm) ────────────────────────────
+  // Reset global (llamado desde resetForm)
   window._resetFoto = () => {
     hiddenEl.value         = '';
     previewEl.src          = '';
+    previewEl.style.display = '';
     dropEl.classList.remove('has-foto');
     clearBtn.style.display = 'none';
     setInfo('', '');
-    inputCam.value = '';
-    inputGal.value = '';
-    cerrarCamara();
+    inputEl.value = '';
   };
+
+  // Exponer processFile para la cámara (initCamera)
+  window._processFoto = processFile;
+})();
+
+/* ── CÁMARA (getUserMedia) ──────────────────────────────────── */
+(function initCamera() {
+  const overlay = document.getElementById('camOverlay');
+  const video   = document.getElementById('camVideo');
+  const canvas  = document.getElementById('camCanvas');
+  const shoot   = document.getElementById('camShoot');
+  const cancel  = document.getElementById('camCancel');
+  let stream = null;
+
+  function abrir() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showToast('⚠️ Cámara no disponible en este dispositivo', true);
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
+    }).then(s => {
+      stream = s;
+      video.srcObject = s;
+      overlay.classList.add('show');
+    }).catch(() => {
+      showToast('⚠️ No se pudo acceder a la cámara', true);
+    });
+  }
+
+  function capturar() {
+    if (!stream) return;
+    const w = video.videoWidth || 1280;
+    const h = video.videoHeight || 720;
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    cerrar();
+    canvas.toBlob(blob => {
+      if (blob && window._processFoto) {
+        const file = new File([blob], 'camera.jpg', { type: blob.type || 'image/jpeg' });
+        window._processFoto(file);
+      }
+    }, 'image/jpeg', 0.92);
+  }
+
+  function cerrar() {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    video.srcObject = null;
+    overlay.classList.remove('show');
+  }
+
+  document.getElementById('btnCamara').addEventListener('click', abrir);
+  shoot.addEventListener('click', capturar);
+  cancel.addEventListener('click', cerrar);
 })();
 
 /* ── INIT ────────────────────────────────────────────────────── */

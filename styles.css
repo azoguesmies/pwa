@@ -509,20 +509,20 @@ input.err         { border-color: var(--red); background: #fff5f5; }
   vertical-align: middle;
 }
 
-/* Vista previa / drop zone */
 .foto-drop {
   position: relative;
   border: 2px dashed var(--bor);
   border-radius: var(--r);
   background: var(--bg);
+  cursor: pointer;
   transition: border-color .2s, background .2s;
   overflow: hidden;
-  min-height: 120px;
+  min-height: 110px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: .6rem;
 }
+.foto-drop:hover,
 .foto-drop.dragover {
   border-color: var(--acc);
   background: rgba(79,70,229,.04);
@@ -530,7 +530,6 @@ input.err         { border-color: var(--red); background: #fff5f5; }
 .foto-drop.has-foto {
   border-style: solid;
   border-color: rgba(13,148,136,.4);
-  cursor: default;
 }
 
 .foto-placeholder {
@@ -538,18 +537,19 @@ input.err         { border-color: var(--red); background: #fff5f5; }
   flex-direction: column;
   align-items: center;
   gap: .4rem;
-  padding: 1.4rem;
+  padding: 1.2rem;
   color: var(--txt3);
   text-align: center;
   pointer-events: none;
+  transition: opacity .2s;
 }
-.foto-placeholder svg   { color: var(--txt3); opacity: .5; }
+.foto-placeholder svg   { color: var(--txt3); opacity: .6; }
 .foto-placeholder span  { font-size: .78rem; font-weight: 600; color: var(--txt2); }
-.foto-placeholder small { font-size: .63rem; color: var(--txt3); }
+.foto-placeholder small { font-size: .65rem; color: var(--txt3); }
 
 .foto-preview {
   width: 100%;
-  max-height: 220px;
+  max-height: 200px;
   object-fit: cover;
   display: none;
   border-radius: calc(var(--r) - 2px);
@@ -560,10 +560,10 @@ input.err         { border-color: var(--red); background: #fff5f5; }
 .foto-clear {
   position: absolute;
   top: .5rem; right: .5rem;
-  background: rgba(220,38,38,.88);
+  background: rgba(220,38,38,.85);
   border: none;
   border-radius: 50%;
-  width: 28px; height: 28px;
+  width: 26px; height: 26px;
   display: flex; align-items: center; justify-content: center;
   color: #fff;
   cursor: pointer;
@@ -572,147 +572,14 @@ input.err         { border-color: var(--red); background: #fff5f5; }
 }
 .foto-clear:hover { background: #b91c1c; transform: scale(1.1); }
 
-/* Botones cámara / galería */
-.foto-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: .55rem;
-  margin-bottom: .4rem;
-}
-
-.btn-foto-cam,
-.btn-foto-gal {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: .45rem;
-  padding: .6rem .9rem;
-  border-radius: var(--r);
-  font-family: 'Syne', sans-serif;
-  font-weight: 700;
-  font-size: .72rem;
-  letter-spacing: .05em;
-  cursor: pointer;
-  transition: all .15s;
-  border: 1.5px solid;
-}
-
-.btn-foto-cam {
-  background: linear-gradient(135deg, rgba(79,70,229,.1), rgba(13,148,136,.08));
-  border-color: rgba(79,70,229,.3);
-  color: var(--acc);
-}
-.btn-foto-cam:hover {
-  background: rgba(79,70,229,.15);
-  border-color: var(--acc);
-  box-shadow: 0 2px 8px rgba(79,70,229,.2);
-}
-
-.btn-foto-gal {
-  background: rgba(107,114,128,.07);
-  border-color: var(--bor);
-  color: var(--txt2);
-}
-.btn-foto-gal:hover {
-  background: rgba(107,114,128,.14);
-  border-color: var(--txt3);
-  color: var(--txt);
-}
-
 .foto-info {
   font-size: .63rem;
   color: var(--txt3);
-  margin-top: .2rem;
+  margin-top: .3rem;
   min-height: 1rem;
 }
 .foto-info.ok  { color: var(--grn2); font-weight: 600; }
 .foto-info.err { color: var(--red);  font-weight: 600; }
-
-/* ── MODAL CÁMARA EN VIVO ────────────────────────────── */
-.cam-modal {
-  position: fixed;
-  inset: 0;
-  background: #000;
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.cam-modal-inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-#camVideo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  background: #000;
-}
-
-.cam-controls {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  padding: 1.5rem 2rem;
-  background: linear-gradient(transparent, rgba(0,0,0,.7));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-/* Botón disparador central */
-.cam-capture {
-  width: 68px; height: 68px;
-  border-radius: 50%;
-  border: 4px solid #fff;
-  background: rgba(255,255,255,.15);
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all .15s;
-  flex-shrink: 0;
-}
-.cam-capture span {
-  display: block;
-  width: 50px; height: 50px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform .1s;
-}
-.cam-capture:hover span  { transform: scale(.9); }
-.cam-capture:active span { transform: scale(.8); }
-
-/* Botón cambiar cámara */
-.cam-switch {
-  width: 46px; height: 46px;
-  border-radius: 50%;
-  border: 2px solid rgba(255,255,255,.5);
-  background: rgba(255,255,255,.15);
-  color: #fff;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all .15s;
-  backdrop-filter: blur(4px);
-}
-.cam-switch:hover { background: rgba(255,255,255,.28); }
-
-/* Botón cerrar */
-.cam-close {
-  width: 46px; height: 46px;
-  border-radius: 50%;
-  border: 2px solid rgba(255,255,255,.5);
-  background: rgba(220,38,38,.4);
-  color: #fff;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all .15s;
-  backdrop-filter: blur(4px);
-}
-.cam-close:hover { background: rgba(220,38,38,.7); }
 
 /* Thumbnail en tarjeta de contacto */
 .c-foto {
@@ -723,3 +590,84 @@ input.err         { border-color: var(--red); background: #fff5f5; }
   border: 2px solid var(--bor);
   box-shadow: 0 1px 4px rgba(30,27,75,.1);
 }
+
+/* ── FOTO ACTIONS (tomar foto / subir archivo) ──────────── */
+.foto-actions {
+  display: flex;
+  gap: .5rem;
+  margin-top: .6rem;
+}
+.btn-foto {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding: .55rem .7rem;
+  border: 1.5px solid var(--bor);
+  border-radius: var(--r);
+  background: var(--sur);
+  color: var(--txt2);
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: .68rem;
+  letter-spacing: .04em;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.btn-foto:hover {
+  border-color: var(--acc);
+  background: rgba(79,70,229,.04);
+  color: var(--acc);
+}
+.btn-foto svg { flex-shrink: 0; }
+
+/* ── CAMERA OVERLAY ───────────────────────────────────────── */
+.cam-overlay {
+  position: fixed; inset: 0; z-index: 1301;
+  display: none;
+  background: #000;
+}
+.cam-overlay.show { display: block; }
+#camVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.btn-cam-shoot {
+  position: absolute;
+  bottom: max(2.2rem, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: 4px solid rgba(255,255,255,.9);
+  background: rgba(255,255,255,.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  transition: transform .12s, opacity .12s;
+  z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-cam-shoot:active { transform: translateX(-50%) scale(.85); opacity: .7; }
+.cam-close {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  right: 1rem;
+  z-index: 2;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,.5);
+  color: #fff;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cam-close:active { background: rgba(0,0,0,.7); }
