@@ -6,7 +6,8 @@
    Parámetros = nombres exactos de columnas del Sheet:
    nombres | direccion | email | ciudad | valEasting | valNorthing
    ─────────────────────────────────────────────────────────────── */
-const GS_URL = 'https://script.google.com/macros/s/AKfycbx1e4V5gJ6HBwYHv3bb6G1Im7laFKWVXRQhvc4gxxg6CJYI5UTHrSQGTNJb9RvK0xQn/exec';
+/*const GS_URL = 'https://script.google.com/macros/s/AKfycbyxoquny8QDFJ1SLL5O8Vy6GTNGxIwX2e_h3tuKHSYdnyWbCuU00LMzCQYuE4ucMeuj/exec';*/
+const GS_URL = 'https://script.google.com/macros/s/AKfycbyX0rigVs5vUcUZ7ofORYplr45IQsgaRkAKkcRNrhAjz_Qb3IhdqYmJt90CvLxnPcno/exec';
 
 /* ── INDEXEDDB ───────────────────────────────────────────────────
    Claves = nombres exactos de columnas del Sheet
@@ -65,7 +66,10 @@ function renderList(records) {
   }
   el.innerHTML = records.map(r => `
     <div class="c-card">
-      <div class="c-avatar">${initials(r.nombres)}</div>
+      ${r.foto
+        ? `<img class="c-foto" src="${r.foto}" alt="${esc(r.nombres)}"/>`
+        : `<div class="c-avatar">${initials(r.nombres)}</div>`
+      }
       <div class="c-info">
         <div class="c-name">${esc(r.nombres)}</div>
         <div class="c-meta">${esc(r.email)}</div>
@@ -119,6 +123,7 @@ function getFields() {
     ciudad:      document.getElementById('ciudad').value.trim(),
     valEasting:  document.getElementById('valEasting').value,
     valNorthing: document.getElementById('valNorthing').value,
+    foto:        document.getElementById('foto').value,       // base64 o ''
     utmZone:     document.getElementById('utmZone').value,
     utmHemi:     document.getElementById('utmHemi').value,
     gpsLat:      document.getElementById('gpsLat').value,
@@ -159,6 +164,7 @@ function resetForm() {
   document.getElementById('cancelEditBtn')?.remove();
   if (window._resetCiudad) window._resetCiudad();
   if (window._resetUTM)    window._resetUTM();
+  if (window._resetFoto)   window._resetFoto();
 }
 
 document.getElementById('contactForm').addEventListener('submit', async e => {
@@ -199,6 +205,16 @@ async function startEdit(id) {
   document.getElementById('gpsLat').value        = r.gpsLat      || '';
   document.getElementById('gpsLng').value        = r.gpsLng      || '';
   document.getElementById('gpsAcc').value        = r.gpsAcc      || '';
+
+  // Restaurar foto si existe
+  if (r.foto) {
+    document.getElementById('foto').value          = r.foto;
+    document.getElementById('fotoPreview').src     = r.foto;
+    document.getElementById('fotoDrop').classList.add('has-foto');
+    document.getElementById('fotoClear').style.display = 'flex';
+    document.getElementById('fotoInfo').textContent    = 'Foto guardada';
+    document.getElementById('fotoInfo').className      = 'foto-info ok';
+  }
 
   if (r.valEasting) {
     document.getElementById('dispEasting').textContent  = Number(r.valEasting).toLocaleString() + ' m';
@@ -288,20 +304,22 @@ document.getElementById('confirmSend').addEventListener('click', async () => {
     spTxt.textContent = `Enviando ${ok + fail + 1} de ${records.length}…`;
     spSub.textContent = r.nombres || '';
 
-    // Parámetros = columnas exactas del Sheet
-    const params = new URLSearchParams({
-      nombres:     r.nombres     || '',
-      direccion:   r.direccion   || '',
-      email:       r.email       || '',
-      ciudad:      r.ciudad      || '',
-      valEasting:  r.valEasting  || '',
-      valNorthing: r.valNorthing || '',
-    });
+    // POST + FormData: único método que permite enviar foto (base64)
+    // junto a los demás campos. GAS los lee con e.parameter desde FormData.
+    const fd = new FormData();
+    fd.append('nombres',     r.nombres     || '');
+    fd.append('direccion',   r.direccion   || '');
+    fd.append('email',       r.email       || '');
+    fd.append('ciudad',      r.ciudad      || '');
+    fd.append('valEasting',  r.valEasting  || '');
+    fd.append('valNorthing', r.valNorthing || '');
+    fd.append('foto',        r.foto        || '');  // base64 o vacío
 
     try {
-      await fetch(`${GS_URL}?${params.toString()}`, {
-        method: 'GET',
+      await fetch(GS_URL, {
+        method: 'POST',
         mode:   'no-cors',
+        body:   fd,
       });
       ok++;
     } catch (e) {
@@ -635,6 +653,114 @@ const EC_CITIES = [
     installBanner.classList.remove('show');
     showToast('✅ App instalada — ábrela desde pantalla de inicio');
   });
+})();
+
+/* ── FOTO FIELD ──────────────────────────────────────────────────
+   - Acepta selección desde galería, cámara o explorador de archivos
+   - Comprime la imagen a max 800px y calidad 0.75 antes de guardar
+   - Almacena en IndexedDB como string base64
+   - Campo opcional: puede estar vacío al guardar y al enviar
+   ─────────────────────────────────────────────────────────────── */
+(function initFoto() {
+  const dropEl    = document.getElementById('fotoDrop');
+  const inputEl   = document.getElementById('fotoInput');
+  const previewEl = document.getElementById('fotoPreview');
+  const hiddenEl  = document.getElementById('foto');
+  const clearBtn  = document.getElementById('fotoClear');
+  const infoEl    = document.getElementById('fotoInfo');
+
+  const MAX_PX    = 800;   // píxeles máximos (ancho o alto)
+  const QUALITY   = 0.75;  // calidad JPEG
+
+  // Abrir selector al hacer clic en el área
+  dropEl.addEventListener('click', e => {
+    if (e.target === clearBtn || clearBtn.contains(e.target)) return;
+    inputEl.click();
+  });
+
+  // Drag & Drop desde PC
+  dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('dragover'); });
+  dropEl.addEventListener('dragleave', () => dropEl.classList.remove('dragover'));
+  dropEl.addEventListener('drop', e => {
+    e.preventDefault();
+    dropEl.classList.remove('dragover');
+    const file = e.dataTransfer?.files?.[0];
+    if (file) processFile(file);
+  });
+
+  // Selección desde input file (cámara o galería en móvil)
+  inputEl.addEventListener('change', () => {
+    const file = inputEl.files?.[0];
+    if (file) processFile(file);
+    inputEl.value = '';  // reset para permitir re-selección del mismo archivo
+  });
+
+  // Botón limpiar foto
+  clearBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    window._resetFoto();
+  });
+
+  // Procesar archivo: validar, comprimir, mostrar
+  function processFile(file) {
+    if (!file.type.startsWith('image/')) {
+      setInfo('Solo se permiten imágenes (JPG, PNG, WEBP…)', 'err');
+      return;
+    }
+    const maxMB = 10;
+    if (file.size > maxMB * 1024 * 1024) {
+      setInfo(`La imagen supera ${maxMB} MB`, 'err');
+      return;
+    }
+
+    setInfo('Procesando imagen…', '');
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        // Calcular nuevas dimensiones respetando el aspect ratio
+        let { width: w, height: h } = img;
+        if (w > MAX_PX || h > MAX_PX) {
+          if (w > h) { h = Math.round(h * MAX_PX / w); w = MAX_PX; }
+          else       { w = Math.round(w * MAX_PX / h); h = MAX_PX; }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+        const base64 = canvas.toDataURL('image/jpeg', QUALITY);
+
+        // Guardar y mostrar
+        hiddenEl.value         = base64;
+        previewEl.src          = base64;
+        dropEl.classList.add('has-foto');
+        clearBtn.style.display = 'flex';
+
+        const kb = Math.round(base64.length * 0.75 / 1024);
+        setInfo(`✓ ${file.name} · ${w}×${h}px · ~${kb} KB`, 'ok');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setInfo(msg, cls) {
+    infoEl.textContent = msg;
+    infoEl.className   = `foto-info ${cls}`;
+  }
+
+  // Reset global (llamado desde resetForm)
+  window._resetFoto = () => {
+    hiddenEl.value         = '';
+    previewEl.src          = '';
+    previewEl.style.display = '';
+    dropEl.classList.remove('has-foto');
+    clearBtn.style.display = 'none';
+    setInfo('', '');
+    inputEl.value = '';
+  };
 })();
 
 /* ── INIT ────────────────────────────────────────────────────── */
